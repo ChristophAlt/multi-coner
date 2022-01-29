@@ -65,12 +65,11 @@ class Gazetteer:
 
                     self.dictionary[string].add(label)
 
-        # labels = ["CORP", "PROD", "GRP", "CW", "LOC", "PER"]
         labels = set()
         for val in self.dictionary.values():
             labels.update(val)
 
-        self.label_to_id = {label: i for i, label in enumerate(labels)}
+        self.label_to_id = {label: i for i, label in enumerate(sorted(labels))}
         self.num_labels = len(self.label_to_id)
 
         logger.debug("label_to_id: %s", self.label_to_id)
