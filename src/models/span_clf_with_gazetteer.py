@@ -34,6 +34,7 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
         wiki_to_vec_file: str,
         num_gazetteer_labels: int,
         tokenizer_vocab_size: int,
+        tokenizer_unk_token_id: int = 100,
         learning_rate: float = 1e-5,
         task_learning_rate: float = 1e-5,
         warmup_proportion: float = 0.1,
@@ -42,6 +43,8 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
         span_length_embedding_dim: int = 150,
         freeze_model: bool = False,
         layer_mean: bool = False,
+        augment_input: bool = False,
+        augment_mask_probability: float = 0.25,
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -52,10 +55,14 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
         self.warmup_proportion = warmup_proportion
         self.max_span_length = max_span_length
         self.layer_mean = layer_mean
+        self.augment_input = augment_input
+        self.tokenizer_vocab_size = tokenizer_vocab_size
+        self.tokenizer_unk_token_id = tokenizer_unk_token_id
+        self.augment_mask_probability = augment_mask_probability
 
         config = AutoConfig.from_pretrained(model_name_or_path)
         self.model = AutoModel.from_pretrained(model_name_or_path, config=config)
-        self.model.resize_token_embeddings(tokenizer_vocab_size)
+        self.model.resize_token_embeddings(self.tokenizer_vocab_size)
 
         entity_embeddings = torch.from_numpy(KeyedVectors.load(wiki_to_vec_file).vectors)
         entity_embedding_dim = entity_embeddings.shape[1]
@@ -164,7 +171,34 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
 
         return torch.tensor(target)
 
+    def _torch_mask_tokens(self, inputs: Any) -> Tuple[Any, Any]:
+        """
+        Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original.
+        """
+        input_ids = inputs["input_ids"].clone()
+
+        special_tokens_mask = inputs["special_tokens_mask"]
+        special_tokens_mask = special_tokens_mask.bool()
+
+        probability_matrix = torch.full(input_ids.shape, self.augment_mask_probability, device=input_ids.device)
+
+        probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
+        masked_indices = torch.bernoulli(probability_matrix).bool()
+
+        # 80% of the time, we replace masked input tokens with tokenizer.unk_token ([UNK])
+        indices_replaced = torch.bernoulli(torch.full(input_ids.shape, 0.8, device=input_ids.device)).bool() & masked_indices
+        input_ids[indices_replaced] = self.tokenizer_unk_token_id
+
+        # 10% of the time, we replace masked input tokens with random word
+        # indices_random = torch.bernoulli(torch.full(input_ids.shape, 0.5, device=input_ids.device)).bool() & masked_indices & ~indices_replaced
+        # random_words = torch.randint(self.tokenizer_vocab_size, input_ids.shape, dtype=torch.long, device=input_ids.device)
+        # input_ids[indices_random] = random_words[indices_random]
+
+        # The rest of the time (10% of the time) we keep the masked input tokens unchanged
+        return input_ids
+
     def forward(self, input_: TransformerSpanClassificationModelBatchEncoding) -> TransformerSpanClassificationModelBatchOutput:  # type: ignore
+        input_.pop("special_tokens_mask", None)
         wikipedia_entities = input_.pop("wikipedia_entities", None)
         gazetteer_features = input_.pop("gazetteer", None)
         output = self.model(**input_, output_hidden_states=True)
@@ -215,6 +249,9 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
     def training_step(self, batch: TransformerSpanClassificationModelStepBatchEncoding, batch_idx):  # type: ignore
         input_, target_tuples = batch
         assert target_tuples is not None, "target has to be available for training"
+
+        if self.augment_input:
+            input_["input_ids"] = self._torch_mask_tokens(input_)
 
         output = self(input_)
 
@@ -274,20 +311,21 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
         return loss
 
     def configure_optimizers(self):
-        # param_optimizer = list(self.named_parameters())
+        param_optimizer = list(self.named_parameters())
+        # param_optimizer = filter(lambda p: p.requires_grad, self.parameters())
 
-        # optimizer_grouped_parameters = [
-        #     {"params": [p for n, p in param_optimizer if "classifier" not in n and "span_length_embedding" not in n]},
-        #     {
-        #         "params": [p for n, p in param_optimizer if "classifier" in n or "span_length_embedding" in n],
-        #         "lr": self.task_learning_rate,
-        #     },
-        # ]
+        optimizer_grouped_parameters = [
+            {"params": [p for n, p in param_optimizer if "classifier" not in n and "span_length_embedding" not in n]},
+            {
+                "params": [p for n, p in param_optimizer if "classifier" in n or "span_length_embedding" in n],
+                "lr": self.task_learning_rate,
+            },
+        ]
         # print("Parameters with learning_rate: ", [n for n, p in param_optimizer if "classifier" not in n])
         # print("Parameters with task_learning_rate: ", [n for n, p in param_optimizer if "classifier" in n or "span_length_embedding" in n])
-        # optimizer = AdamW(optimizer_grouped_parameters, lr=self.learning_rate)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=self.learning_rate)
         # print([n for n, p in self.named_parameters() if p.requires_grad])
-        optimizer = AdamW(filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate)
+        # optimizer = AdamW(filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate)
         # print("Optim, Learning rates: ", [group["lr"] for group in optimizer.param_groups])
         # scheduler = get_linear_schedule_with_warmup(
         #     optimizer, int(self.t_total * self.warmup_proportion), self.t_total

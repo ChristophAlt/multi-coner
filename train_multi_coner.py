@@ -1,3 +1,4 @@
+import logging
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import BaseFinetuning, LearningRateMonitor
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -33,9 +34,12 @@ class FreezeUnfreezeCallback(BaseFinetuning):
 
 
 def main():
+    log_level = logging.DEBUG
+    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=log_level)
+
     pl.seed_everything(42)
 
-    model_output_path = "/media/christoph/HDD/models/multiconer-en-spanclf-wiki-gazetteer-freeze/"
+    model_output_path = "/media/christoph/HDD/models/multiconer-en-spanclf-wiki-gazetteer-aug-2/"
     wiki_to_vec_file = "/home/christoph/Downloads/enwiki_20180420_100d.kv"
     # gazetteer_path = "/home/christoph/Downloads/gazetteers"
 
@@ -44,10 +48,11 @@ def main():
     # model_name = "bert-base-uncased"
     tokenizer_name_or_path = "google/electra-large-discriminator"
     model_name_or_path = tokenizer_name_or_path
-    num_epochs = 100
-    batch_size = 10
+    num_epochs = 20
+    batch_size = 64
 
     data_dir = "/home/christoph/Downloads/training_data/"
+    # data_dir = "/home/christoph/Projects/research/multi_coner/notebooks/augmented_multiconer/improved_validation/"
 
     train_docs = load_multiconer(
         data_dir=data_dir,
@@ -98,10 +103,13 @@ def main():
         wiki_to_vec_file=wiki_to_vec_file,
         num_gazetteer_labels=task_module.gazetteer.num_labels,
         tokenizer_vocab_size=len(task_module.tokenizer),
-        learning_rate=1e-4,
+        tokenizer_unk_token_id=task_module.tokenizer.mask_token_id,
+        augment_input=True,
+        augment_mask_probability=0.2,
+        learning_rate=1e-5,
         task_learning_rate=1e-4,
-        freeze_model=True,
-        layer_mean=True,
+        freeze_model=False,
+        layer_mean=False,
     )
 
     lr_monitor = LearningRateMonitor(logging_interval=None)
@@ -110,7 +118,7 @@ def main():
         monitor="val/f1",
         dirpath=model_output_path,
         filename="multiconer-en-{epoch:02d}-val_f1-{val/f1:.2f}",
-        save_top_k=3,
+        save_top_k=1,
         mode="max",
         auto_insert_metric_name=False,
         save_weights_only=True,

@@ -14,7 +14,7 @@ def load_multiconer(
     name: str,
     split: Union[str, Split],
 ) -> List[Document]:
-    path = "conll2003"
+    path = "multiconer"
     data = load_dataset(
         path=os.path.join(HF_DATASETS_ROOT, "multiconer"),
         name=name,

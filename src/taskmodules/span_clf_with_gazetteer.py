@@ -237,19 +237,29 @@ class SpanClassificationWithGazetteerTaskModule(_TransformerSpanClassificationTa
                     if entity_index is not None:
                         entity_spans.append((start_index, end_index - 1, span_length, entity_index))
 
-                    if span_length >= 2:
-                        if gaz_labels:
-                            gaz_feat = [0] * self.gazetteer.num_labels
-                            for label in gaz_labels:
-                                gaz_feat[self.gazetteer.label_to_id[label]] = 1
+                    if len(span_text) <= 3:
+                        continue
 
-                            gaz_features.append((start_index, end_index - 1, span_length, gaz_feat))
+                    if end_index < seq_length - 1:
+                        next_token = self.tokenizer.convert_ids_to_tokens(inp_ids[end_index])
 
+                        # not at end of word
+                        if next_token.startswith("##"):
+                            continue
+
+                    if gaz_labels:
+                        gaz_feat = [0] * self.gazetteer.num_labels
                         for label in gaz_labels:
-                            inp["input_ids"].extend([self.special_tokens_to_id[f"[{label}]"], self.special_tokens_to_id[f"[/{label}]"]])
-                            metad["position_ids"].extend([start_index, end_index - 1])
-                            inp["token_type_ids"].extend([1, 1])
-                            inp["attention_mask"].extend([1, 1])
+                            gaz_feat[self.gazetteer.label_to_id[label]] = 1
+
+                        gaz_features.append((start_index, end_index - 1, span_length, gaz_feat))
+
+                    #     for label in gaz_labels:
+                    #         inp["input_ids"].extend([self.special_tokens_to_id[f"[{label}]"], self.special_tokens_to_id[f"[/{label}]"]])
+                    #         metad["position_ids"].extend([start_index, end_index - 1])
+                    #         inp["token_type_ids"].extend([1, 1])
+                    #         inp["attention_mask"].extend([1, 1])
+                    #         inp["special_tokens_mask"].extend([1, 1])
 
             # inp["input_ids"].append(self.tokenizer.vocab["[SEP]"])
             # metad["position_ids"].append(seq_length + 1)
@@ -302,7 +312,7 @@ class SpanClassificationWithGazetteerTaskModule(_TransformerSpanClassificationTa
         metadata = [
             {
                 "offset_mapping": inp.pop("offset_mapping"),
-                "special_tokens_mask": inp.pop("special_tokens_mask"),
+                # "special_tokens_mask": inp.pop("special_tokens_mask"),
             }
             for inp in input_
         ]
@@ -464,15 +474,15 @@ class SpanClassificationWithGazetteerTaskModule(_TransformerSpanClassificationTa
 
         # input_ = {k: torch.tensor(v, dtype=torch.int64) for k, v in input_.items()}
         input_ = dict(input_)
-        seq_length = input_["input_ids"].shape[1]
+        # seq_length = input_["input_ids"].shape[1]
 
-        position_ids = []
-        for metad in metadata:
-            start_position = metad["seq_len"]
-            end_position = start_position + (seq_length - len(metad["position_ids"]))
-            position_ids.append(list(metad["position_ids"]) + list(range(start_position, end_position)))
+        # position_ids = []
+        # for metad in metadata:
+        #     start_position = metad["seq_len"]
+        #     end_position = start_position + (seq_length - len(metad["position_ids"]))
+        #     position_ids.append(list(metad["position_ids"]) + list(range(start_position, end_position)))
 
-        input_["position_ids"] = torch.tensor(position_ids, dtype=torch.int64)
+        # input_["position_ids"] = torch.tensor(position_ids, dtype=torch.int64)
 
         input_["wikipedia_entities"] = [metad["wikipedia_entities"] for metad in metadata]
         input_["gazetteer"] = [metad["gazetteer"] for metad in metadata]
