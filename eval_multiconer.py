@@ -137,8 +137,7 @@ def main():
     log_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=log_level)
 
-    model_name_or_path = "/media/christoph/HDD/models/multiconer-en-spanclf-wiki-entities/"
-    data_dir = "/home/christoph/Downloads/training_data/"
+    # gazetteer_path = "/home/christoph/Projects/research/multi_coner/data/gazetteers-2/gazetteer-all.txt"
 
     taskmodule = SpanClassificationWithGazetteerTaskModule.from_pretrained(args.model_path, use_efficient_gazetteer=False)
 
@@ -146,6 +145,8 @@ def main():
         model = SpanClassificationWithGazetteerModel.from_pretrained(args.model_path)
     else:
         model = SpanClassificationWithGazetteerModel.load_from_checkpoint(os.path.join(args.model_path, args.checkpoint))
+
+    model = model.eval()
 
     ner_pipeline = Pipeline(model=model, taskmodule=taskmodule, device=args.cuda_device)
 

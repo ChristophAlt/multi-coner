@@ -39,7 +39,7 @@ def main():
 
     pl.seed_everything(42)
 
-    model_output_path = "/media/christoph/HDD/models/multiconer-en-spanclf-wiki-gazetteer-aug-2/"
+    model_output_path = "/media/christoph/HDD/models/multiconer-en-spanclf-wiki-gazetteer-aug-4/"
     wiki_to_vec_file = "/home/christoph/Downloads/enwiki_20180420_100d.kv"
     # gazetteer_path = "/home/christoph/Downloads/gazetteers"
 
@@ -48,8 +48,8 @@ def main():
     # model_name = "bert-base-uncased"
     tokenizer_name_or_path = "google/electra-large-discriminator"
     model_name_or_path = tokenizer_name_or_path
-    num_epochs = 20
-    batch_size = 64
+    num_epochs = 100
+    batch_size = 32
 
     data_dir = "/home/christoph/Downloads/training_data/"
     # data_dir = "/home/christoph/Projects/research/multi_coner/notebooks/augmented_multiconer/improved_validation/"
