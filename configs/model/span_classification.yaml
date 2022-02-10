@@ -2,7 +2,7 @@ _target_: src.models.span_classification.SpanClassificationModel
 
 model_name_or_path: google/electra-large-discriminator
 learning_rate: 1e-5
-task_learning_rate: 1e-4
+task_learning_rate: 1e-5
 warmup_proportion: 0.1
 ignore_index: 0
 max_span_length: 8

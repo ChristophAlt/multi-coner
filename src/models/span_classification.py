@@ -69,7 +69,10 @@ class SpanClassificationModel(PyTorchIEModel):
             for param in self.model.parameters():
                 param.requires_grad = False
 
-        joint_embedding_dim = config.hidden_size * 2 + +span_length_embedding_dim
+        joint_embedding_dim = self._get_joint_embedding_dim(
+            model_hidden_dim=config.hidden_size,
+            span_length_embedding_dim=span_length_embedding_dim,
+        )
 
         self.span_length_embedding = nn.Embedding(
             num_embeddings=max_span_length, embedding_dim=span_length_embedding_dim
@@ -90,6 +93,11 @@ class SpanClassificationModel(PyTorchIEModel):
 
         self.train_f1 = torchmetrics.F1(num_classes=num_classes, ignore_index=ignore_index)
         self.val_f1 = torchmetrics.F1(num_classes=num_classes, ignore_index=ignore_index)
+
+    def _get_joint_embedding_dim(
+        self, model_hidden_dim: int, span_length_embedding_dim: int
+    ) -> int:
+        return model_hidden_dim * 2 + span_length_embedding_dim
 
     def _start_end_and_span_length_span_index(
         self, batch_size: int, max_seq_length: int, seq_lengths: Optional[Iterable[int]] = None
@@ -175,8 +183,13 @@ class SpanClassificationModel(PyTorchIEModel):
         # The rest of the time (10% of the time) we keep the masked input tokens unchanged
         return input_ids
 
-    def forward(self, input_: TransformerSpanClassificationModelBatchEncoding) -> TransformerSpanClassificationModelBatchOutput:  # type: ignore
-        output = self.model(**input_, output_hidden_states=self.layer_mean)
+    def _get_additional_embeddings(
+        self, inputs: TransformerSpanClassificationModelBatchEncoding
+    ) -> List[torch.Tensor]:
+        return []
+
+    def forward(self, inputs: TransformerSpanClassificationModelBatchEncoding) -> TransformerSpanClassificationModelBatchOutput:  # type: ignore
+        output = self.model(**inputs, output_hidden_states=self.layer_mean)
 
         batch_size, seq_length, hidden_dim = output.last_hidden_state.shape
 
@@ -188,8 +201,8 @@ class SpanClassificationModel(PyTorchIEModel):
             hidden_state = output.last_hidden_state.view(batch_size * seq_length, hidden_dim)
 
         seq_lengths = None
-        if "attention_mask" in input_:
-            seq_lengths = torch.sum(input_["attention_mask"], dim=-1).detach().cpu()
+        if "attention_mask" in inputs:
+            seq_lengths = torch.sum(inputs["attention_mask"], dim=-1).detach().cpu()
 
         (
             start_indices,
@@ -268,7 +281,9 @@ class SpanClassificationModel(PyTorchIEModel):
         return loss
 
     def configure_optimizers(self):
-        param_optimizer = [(param, name) for param, name in self.named_parameters() if param.requires_grad]
+        param_optimizer = [
+            (param, name) for param, name in self.named_parameters() if param.requires_grad
+        ]
 
         optimizer_grouped_parameters = [
             {

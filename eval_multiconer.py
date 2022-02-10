@@ -7,10 +7,11 @@ from typing import List, Tuple
 
 from pytorch_ie import Pipeline
 from seqeval.metrics import classification_report
-from seqeval.scheme import IOB2
 
 from src.datamodules.datasets.multiconer import load_multiconer
+from src.models.span_classification import SpanClassificationModel
 from src.models.span_clf_with_gazetteer import SpanClassificationWithGazetteerModel
+from src.taskmodules.span_classification import SpanClassificationTaskModule
 from src.taskmodules.span_clf_with_gazetteer import SpanClassificationWithGazetteerTaskModule
 
 
@@ -106,6 +107,20 @@ parser.add_argument(
     help="path containing the model to be evaluated",
 )
 parser.add_argument(
+    "--taskmodule-type",
+    required=True,
+    type=str,
+    choices=["span_classification"],
+    help="the type of the task module corresponding to the model to be evaluated",
+)
+parser.add_argument(
+    "--model-type",
+    required=True,
+    type=str,
+    choices=["span_classification"],
+    help="the type of the model to be evaluated",
+)
+parser.add_argument(
     "--dataset-dir",
     required=True,
     type=str,
@@ -158,6 +173,11 @@ parser.add_argument(
 )
 
 
+TASKMODULE_TYPE_TO_CLASS = {"span_classification": SpanClassificationTaskModule}
+
+MODEL_TYPE_TO_CLASS = {"span_classification": SpanClassificationModel}
+
+
 def main():
     args = parser.parse_args()
 
@@ -166,22 +186,19 @@ def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=log_level
     )
 
-    # gazetteer_path = "/home/christoph/Projects/research/multi_coner/data/gazetteers-2/gazetteer-all.txt"
+    taskmodule_class = TASKMODULE_TYPE_TO_CLASS[args.taskmodule_type]
+    model_class = MODEL_TYPE_TO_CLASS[args.model_type]
 
-    taskmodule = SpanClassificationWithGazetteerTaskModule.from_pretrained(
-        args.model_path, use_efficient_gazetteer=False
-    )
+    taskmodule = taskmodule_class.from_pretrained(args.model_path)
 
     if args.checkpoint is None:
-        model = SpanClassificationWithGazetteerModel.from_pretrained(args.model_path)
+        model = model_class.from_pretrained(args.model_path)
     else:
-        model = SpanClassificationWithGazetteerModel.load_from_checkpoint(
-            os.path.join(args.model_path, args.checkpoint)
-        )
+        model = model_class.load_from_checkpoint(os.path.join(args.model_path, args.checkpoint))
 
     model = model.eval()
 
-    ner_pipeline = Pipeline(model=model, taskmodule=taskmodule, device=args.cuda_device)
+    pipeline = Pipeline(model=model, taskmodule=taskmodule, device=args.cuda_device)
 
     eval_documents = load_multiconer(
         data_dir=args.dataset_dir,
@@ -191,7 +208,7 @@ def main():
 
     predict_field = "entities"
 
-    ner_pipeline(eval_documents, predict_field=predict_field, batch_size=args.batch_size)
+    pipeline(eval_documents, predict_field=predict_field, batch_size=args.batch_size)
 
     print(
         seqeval_score(
