@@ -318,7 +318,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
 
         all_embeddings = [start_embedding, end_embedding, span_length_embedding]
         all_embeddings.extend(
-                self._get_additional_embeddings(
+            self._get_additional_embeddings(
                 wikipedia_entities,
                 gazetteer_features,
                 batch_size=batch_size,

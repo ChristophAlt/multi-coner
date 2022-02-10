@@ -10,8 +10,10 @@ from seqeval.metrics import classification_report
 
 from src.datamodules.datasets.multiconer import load_multiconer
 from src.models.span_classification import SpanClassificationModel
+from src.models.span_classification_features import SpanClassificationWithFeaturesModel
 from src.models.span_clf_with_gazetteer import SpanClassificationWithGazetteerModel
 from src.taskmodules.span_classification import SpanClassificationTaskModule
+from src.taskmodules.span_classification_features import SpanClassificationWithFeaturesTaskModule
 from src.taskmodules.span_clf_with_gazetteer import SpanClassificationWithGazetteerTaskModule
 
 
@@ -110,14 +112,14 @@ parser.add_argument(
     "--taskmodule-type",
     required=True,
     type=str,
-    choices=["span_classification"],
+    choices=["span_classification", "span_classification_features", "span_classification_gazetteer"],
     help="the type of the task module corresponding to the model to be evaluated",
 )
 parser.add_argument(
     "--model-type",
     required=True,
     type=str,
-    choices=["span_classification"],
+    choices=["span_classification", "span_classification_features", "span_classification_gazetteer"],
     help="the type of the model to be evaluated",
 )
 parser.add_argument(
@@ -173,10 +175,20 @@ parser.add_argument(
 )
 
 
-TASKMODULE_TYPE_TO_CLASS = {"span_classification": SpanClassificationTaskModule}
+TASKMODULE_TYPE_TO_CLASS = {
+    "span_classification": SpanClassificationTaskModule,
+    "span_classification_features": SpanClassificationWithFeaturesTaskModule,
+    "span_classification_gazetteer": SpanClassificationWithGazetteerTaskModule,
+}
 
-MODEL_TYPE_TO_CLASS = {"span_classification": SpanClassificationModel}
+MODEL_TYPE_TO_CLASS = {
+    "span_classification": SpanClassificationModel,
+    "span_classification_features": SpanClassificationWithFeaturesModel,
+    "span_classification_gazetteer": SpanClassificationWithGazetteerModel,
+}
 
+gazetteer_path = "/home/christoph/Projects/research/notebooks/gazetteers/gaz_combined_3.txt"
+wiki_to_vec_file = "/home/christoph/Downloads/enwiki_20180420_100d.kv"
 
 def main():
     args = parser.parse_args()
@@ -189,12 +201,12 @@ def main():
     taskmodule_class = TASKMODULE_TYPE_TO_CLASS[args.taskmodule_type]
     model_class = MODEL_TYPE_TO_CLASS[args.model_type]
 
-    taskmodule = taskmodule_class.from_pretrained(args.model_path)
+    taskmodule = taskmodule_class.from_pretrained(args.model_path, wiki_to_vec_file=wiki_to_vec_file, gazetteer_path=gazetteer_path)
 
     if args.checkpoint is None:
-        model = model_class.from_pretrained(args.model_path)
+        model = model_class.from_pretrained(args.model_path, wiki_to_vec_file=wiki_to_vec_file)
     else:
-        model = model_class.load_from_checkpoint(os.path.join(args.model_path, args.checkpoint))
+        model = model_class.load_from_checkpoint(os.path.join(args.model_path, args.checkpoint), wiki_to_vec_file=wiki_to_vec_file)
 
     model = model.eval()
 

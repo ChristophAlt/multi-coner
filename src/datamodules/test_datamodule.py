@@ -1,19 +1,17 @@
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
+from pytorch_ie.data.datasets.json import load_json
+from pytorch_ie.data.document import Document, LabeledSpan
 from pytorch_ie.taskmodules.taskmodule import TaskEncoding, TaskModule
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
-
-from pytorch_ie.data.datasets.json import load_json
-
-from pytorch_ie.data.document import Document, LabeledSpan
 
 CLASS_NAME_TO_CLASS = {
     "LabeledSpan": LabeledSpan,
 }
 
 
-def load_json(data: Dict[str, Any], text_field: str="text") -> List[Document]:
+def load_json(data: Dict[str, Any], text_field: str = "text") -> List[Document]:
 
     annotations = {
         name: CLASS_NAME_TO_CLASS[class_name] for name, class_name in data["annotations"].items()
@@ -38,10 +36,7 @@ def load_json(data: Dict[str, Any], text_field: str="text") -> List[Document]:
 
 
 DOCUMENTS = {
-    "annotations": {
-        "entities": "LabeledSpan",
-        "sentences": "LabeledSpan"
-    },
+    "annotations": {"entities": "LabeledSpan", "sentences": "LabeledSpan"},
     "documents": [
         {
             "text": "Jane lives in Berlin. Berlin is in Germany. This is another sentence.",
@@ -49,35 +44,31 @@ DOCUMENTS = {
                 {"start": 0, "end": 4, "label": "PER"},
                 {"start": 14, "end": 20, "label": "LOC"},
                 {"start": 22, "end": 28, "label": "LOC"},
-                {"start": 35, "end": 42, "label": "LOC"}
+                {"start": 35, "end": 42, "label": "LOC"},
             ],
             "sentences": [
                 {"start": 0, "end": 21, "label": "1"},
                 {"start": 23, "end": 43, "label": "2"},
-                {"start": 44, "end": 69, "label": "3"}
-            ]
+                {"start": 44, "end": 69, "label": "3"},
+            ],
         },
         {
             "text": "John works at Hamboldt University.",
             "entities": [
                 {"start": 0, "end": 4, "label": "PER"},
-                {"start": 14, "end": 33, "label": "ORG"}
+                {"start": 14, "end": 33, "label": "ORG"},
             ],
-            "sentences": [
-                {"start": 0, "end": 34, "label": "1"}
-            ]
+            "sentences": [{"start": 0, "end": 34, "label": "1"}],
         },
         {
             "text": "Jim works at Hamburg University.",
             "entities": [
                 {"start": 0, "end": 3, "label": "PER"},
-                {"start": 13, "end": 31, "label": "ORG"}
+                {"start": 13, "end": 31, "label": "ORG"},
             ],
-            "sentences": [
-                {"start": 0, "end": 32, "label": "1"}
-            ]
-        }
-    ]
+            "sentences": [{"start": 0, "end": 32, "label": "1"}],
+        },
+    ],
 }
 
 
