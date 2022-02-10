@@ -1,6 +1,6 @@
 _target_: src.datamodules.multiconer_datamodule.MultiCoNERDataModule
 
-data_dir: /home/christoph/Downloads/training_data/
+data_dir: ???
 name: en
 batch_size: 32
 num_workers: 0
