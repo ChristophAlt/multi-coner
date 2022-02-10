@@ -13,6 +13,7 @@ from pytorch_lightning import (
 from pytorch_lightning.loggers import LightningLoggerBase
 
 from src.utils import utils
+from src.taskmodules.span_classification_features import SpanClassificationWithFeaturesTaskModule
 
 log = utils.get_logger(__name__)
 
@@ -57,8 +58,20 @@ def train(config: DictConfig) -> Optional[float]:
         tokenizer_mask_token_id=task_module.tokenizer.mask_token_id,
     )
 
-    if hasattr(task_module, "gazetteer"):
-        model_args["num_gazetteer_labels"] = task_module.gazetteer.num_labels
+    if isinstance(task_module, SpanClassificationWithFeaturesTaskModule):
+        additional_model_args = dict(
+            use_wiki_to_vec=task_module.has_wiki_to_vec,
+            use_gazetteer=task_module.has_gazetteer,
+            gazetteer_add_input_tokens=task_module.gazetteer_add_input_tokens,
+            gazetteer_add_output_features=task_module.gazetteer_add_output_features,
+        )
+
+        if task_module.has_gazetteer:
+            additional_model_args["num_gazetteer_labels"] = task_module.gazetteer.num_labels
+
+        model_args.update(**additional_model_args)
+
+    log.info(f"Model arguments: {model_args}")
 
     model: LightningModule = hydra.utils.instantiate(
         config.model,

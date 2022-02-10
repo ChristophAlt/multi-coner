@@ -2,6 +2,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import torch
 import torchmetrics
+from gensim.models import KeyedVectors
 from pytorch_ie.core.pytorch_ie import PyTorchIEModel
 from pytorch_ie.models.modules.mlp import MLP
 from torch import Tensor, nn
@@ -22,7 +23,7 @@ TransformerSpanClassificationModelStepBatchEncoding = Tuple[
 ]
 
 
-class SpanClassificationModel(PyTorchIEModel):
+class SpanClassificationWithFeaturesModel(PyTorchIEModel):
     def __init__(
         self,
         model_name_or_path: str,
@@ -44,6 +45,13 @@ class SpanClassificationModel(PyTorchIEModel):
         mlp_hidden_dim: int = 1024,
         mlp_num_layers: int = 2,
         dropout_prob: float = 0.1,
+        ##
+        use_gazetteer: bool = False,
+        use_wiki_to_vec: bool = False,
+        gazetteer_add_input_tokens: bool = False,
+        gazetteer_add_output_features: bool = False,
+        wiki_to_vec_file: Optional[str] = None,
+        num_gazetteer_labels: Optional[int] = None,
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -61,6 +69,12 @@ class SpanClassificationModel(PyTorchIEModel):
         self.augment_input_prob = augment_input_prob
         self.dropout_prob = dropout_prob
 
+        self.use_gazetteer = use_gazetteer
+        self.use_wiki_to_vec = use_wiki_to_vec
+        self.gazetteer_add_input_tokens = gazetteer_add_input_tokens
+        self.gazetteer_add_output_features = gazetteer_add_output_features
+        self.num_gazetteer_labels = num_gazetteer_labels
+
         config = AutoConfig.from_pretrained(model_name_or_path)
         self.model = AutoModel.from_pretrained(model_name_or_path, config=config)
         self.model.resize_token_embeddings(self.tokenizer_vocab_size)
@@ -70,6 +84,20 @@ class SpanClassificationModel(PyTorchIEModel):
                 param.requires_grad = False
 
         joint_embedding_dim = config.hidden_size * 2 + span_length_embedding_dim
+
+        if self.use_wiki_to_vec:
+            entity_embeddings = torch.from_numpy(KeyedVectors.load(wiki_to_vec_file).vectors)
+            entity_embedding_dim = entity_embeddings.shape[1]
+            embedding_weights = torch.cat(
+                [torch.zeros(1, entity_embedding_dim), entity_embeddings], axis=0
+            )
+            self.entity_embeddings = nn.Embedding.from_pretrained(embedding_weights, freeze=True)
+
+            joint_embedding_dim += entity_embedding_dim
+
+        if self.use_gazetteer and self.gazetteer_add_output_features:
+            assert self.num_gazetteer_labels is not None
+            joint_embedding_dim += self.num_gazetteer_labels
 
         self.span_length_embedding = nn.Embedding(
             num_embeddings=max_span_length, embedding_dim=span_length_embedding_dim
@@ -175,6 +203,67 @@ class SpanClassificationModel(PyTorchIEModel):
         # The rest of the time (10% of the time) we keep the masked input tokens unchanged
         return input_ids
 
+    def _get_additional_embeddings(
+        self,
+        inputs: TransformerSpanClassificationModelBatchEncoding,
+        batch_size: int,
+        max_seq_length: int,
+        seq_lengths: Optional[Iterable[int]] = None,
+    ) -> List[torch.Tensor]:
+        if seq_lengths is None:
+            seq_lengths = batch_size * [max_seq_length]
+
+        add_wiki_features = self.use_wiki_to_vec
+        add_gazetteer_features = self.use_gazetteer and self.gazetteer_add_output_features
+
+        # all_zeros = [0] * self.num_gazetteer_labels
+
+        wiki_indices = []
+        gaz_features = []
+        for batch_index, seq_length in enumerate(seq_lengths):
+            self.wikipedia_lookup = None
+            if add_wiki_features:
+                wikipedia_entities = inputs.pop("wikipedia_entities")
+                wikipedia_lookup = {
+                    (start, end, span_length): label
+                    for start, end, span_length, label in wikipedia_entities[batch_index]
+                }
+
+            self.gazetteer_lookup = None
+            if add_gazetteer_features:
+                gazetteer_features = inputs.pop("gazetteer")
+
+                gazetteer_lookup = {
+                    (start, end, span_length): features
+                    for start, end, span_length, features in gazetteer_features[batch_index]
+                }
+
+            for span_length in range(1, self.max_span_length + 1):
+                for start_index in range(seq_length + 1 - span_length):
+                    end_index = start_index + span_length - 1
+
+                    if add_wiki_features:
+                        wiki_index = wikipedia_lookup.get((start_index, end_index, span_length), 0)
+                        wiki_indices.append(wiki_index)
+
+                    if add_gazetteer_features:
+                        gaz_feat = gazetteer_lookup.get(
+                            (start_index, end_index, span_length), [0] * self.num_gazetteer_labels
+                        )
+                        gaz_features.append(gaz_feat)
+
+        additional_features = []
+
+        if add_wiki_features:
+            additional_features.add(wiki_indices)
+
+        if add_gazetteer_features:
+            additional_features.add(gaz_features)
+
+        device = inputs["input_ids"].device
+
+        return [torch.tensor(features).to(device) for features in additional_features]
+
     def forward(self, inputs: TransformerSpanClassificationModelBatchEncoding) -> TransformerSpanClassificationModelBatchOutput:  # type: ignore
         inputs.pop("special_tokens_mask", None)
 
@@ -206,6 +295,11 @@ class SpanClassificationModel(PyTorchIEModel):
         start_embedding = hidden_state[offsets + start_indices, :]
         end_embedding = hidden_state[offsets + end_indices, :]
         span_length_embedding = self.span_length_embedding(span_length.to(hidden_state.device))
+
+        all_embeddings = [start_embedding, end_embedding, span_length_embedding]
+        all_embeddings += self._get_additional_embeddings(
+            inputs, batch_size=batch_size, max_seq_length=seq_length, seq_lengths=seq_lengths
+        )
 
         joint_embedding = torch.cat(
             (start_embedding, end_embedding, span_length_embedding), dim=-1

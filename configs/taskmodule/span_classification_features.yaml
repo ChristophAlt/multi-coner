@@ -1,0 +1,15 @@
+_target_: src.taskmodules.span_classification_features.SpanClassificationWithFeaturesTaskModule
+
+tokenizer_name_or_path: google/electra-large-discriminator
+entity_annotation: entities
+padding: True
+truncation: True
+max_length: 128
+pad_to_multiple_of: null
+label_pad_token_id: -100
+label_to_id: null
+
+wiki_to_vec_file: null
+gazetteer_path: null
+gazetteer_add_input_tokens: False
+gazetteer_add_output_features: False

@@ -1,0 +1,22 @@
+_target_: src.models.span_classification_features.SpanClassificationWithFeaturesModel
+
+model_name_or_path: google/electra-large-discriminator
+learning_rate: 1e-5
+task_learning_rate: 1e-5
+warmup_proportion: 0.1
+ignore_index: 0
+max_span_length: 8
+span_length_embedding_dim: 150
+freeze_model: False
+layer_mean: False
+augment_input: False
+augment_input_prob: 0.2
+mlp_hidden_dim: 1024
+mlp_num_layers: 2
+
+use_gazetteer: False
+use_wiki_to_vec: False
+gazetteer_add_input_tokens: False
+gazetteer_add_output_features: False
+wiki_to_vec_file: null
+num_gazetteer_labels: null

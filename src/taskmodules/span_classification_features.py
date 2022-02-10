@@ -4,6 +4,8 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
+import tqdm
+from gensim.models import KeyedVectors
 from pytorch_ie.data.document import Annotation, Document, LabeledSpan
 from pytorch_ie.models.transformer_span_classification import (
     TransformerSpanClassificationModelBatchOutput,
@@ -13,6 +15,8 @@ from pytorch_ie.taskmodules.taskmodule import Metadata, TaskEncoding, TaskModule
 from transformers import AutoTokenizer
 from transformers.file_utils import PaddingStrategy
 from transformers.tokenization_utils_base import BatchEncoding, TruncationStrategy
+
+from src.gazetteer import Gazetteer
 
 """
 workflow:
@@ -44,7 +48,7 @@ _TransformerSpanClassificationTaskModule = TaskModule[
 logger = logging.getLogger(__name__)
 
 
-class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
+class SpanClassificationWithFeaturesTaskModule(_TransformerSpanClassificationTaskModule):
     def __init__(
         self,
         tokenizer_name_or_path: str,
@@ -55,6 +59,11 @@ class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
         pad_to_multiple_of: Optional[int] = None,
         label_pad_token_id: int = -100,
         label_to_id: Optional[Dict[str, int]] = None,
+        ##
+        wiki_to_vec_file: Optional[str] = None,
+        gazetteer_path: Optional[str] = None,
+        gazetteer_add_input_tokens: bool = False,
+        gazetteer_add_output_features: bool = False,
     ) -> None:
         super().__init__(
             tokenizer_name_or_path=tokenizer_name_or_path,
@@ -64,6 +73,10 @@ class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
             max_length=max_length,
             pad_to_multiple_of=pad_to_multiple_of,
             label_pad_token_id=label_pad_token_id,
+            wiki_to_vec_file=wiki_to_vec_file,
+            gazetteer_path=gazetteer_path,
+            gazetteer_add_input_tokens=gazetteer_add_input_tokens,
+            gazetteer_add_output_features=gazetteer_add_output_features,
         )
 
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
@@ -75,6 +88,36 @@ class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
         self.max_length = max_length
         self.pad_to_multiple_of = pad_to_multiple_of
         self.label_pad_token_id = label_pad_token_id
+        self.gazetteer_add_input_tokens = gazetteer_add_input_tokens
+        self.gazetteer_add_output_features = gazetteer_add_output_features
+
+        self.has_wiki_to_vec = False
+        self.has_gazetteer = False
+
+        if wiki_to_vec_file is not None:
+            self.has_wiki_to_vec = True
+
+            self.wiki_to_vec_key_to_index = {
+                key.lower(): index + 1
+                for key, index in KeyedVectors.load(wiki_to_vec_file).key_to_index.items()
+            }
+
+        if gazetteer_path is not None:
+            self.has_gazetteer = True
+            self.gazetteer = Gazetteer(gazetteer_path, lowercase=True)
+
+            if self.gazetteer_add_input_tokens:
+                special_tokens = []
+                for label in self.gazetteer.label_to_id.keys():
+                    special_tokens.append(f"[{label}]")
+                    special_tokens.append(f"[/{label}]")
+
+                self.tokenizer.add_tokens(special_tokens, special_tokens=True)
+
+                self.special_tokens_to_id = {}
+                for label in self.gazetteer.label_to_id.keys():
+                    self.special_tokens_to_id[f"[{label}]"] = self.tokenizer.vocab[f"[{label}]"]
+                    self.special_tokens_to_id[f"[/{label}]"] = self.tokenizer.vocab[f"[/{label}]"]
 
     def _config(self) -> Dict[str, Any]:
         config = dict(super()._config())
@@ -99,6 +142,76 @@ class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
             current_id += 1
 
         self.id_to_label = {v: k for k, v in self.label_to_id.items()}
+
+    def _add_features(self, inputs, metadata):
+        for inp, metad in tqdm.tqdm(zip(inputs, metadata)):
+            inp_ids = inp["input_ids"]
+            seq_length = len(inp_ids)
+
+            metad["position_ids"] = list(range(seq_length))
+            metad["seq_len"] = seq_length
+
+            entity_spans = []
+            gaz_features = []
+            for span_length in range(1, self.max_span_length + 1):
+                for start_index in range(seq_length + 1 - span_length):
+                    end_index = start_index + span_length
+
+                    span_inp_ids = inp_ids[start_index:end_index]
+
+                    span_text = self.tokenizer.decode(span_inp_ids)
+
+                    if self.has_wiki_to_vec:
+                        entity_index = self.wiki_to_vec_key_to_index.get(
+                            "entity/" + span_text.replace(" ", "_")
+                        )
+
+                        if entity_index is not None:
+                            entity_spans.append(
+                                (start_index, end_index - 1, span_length, entity_index)
+                            )
+
+                    if self.has_gazetteer:
+                        if len(span_text) <= 3:
+                            continue
+
+                        if end_index < seq_length - 1:
+                            next_token = self.tokenizer.convert_ids_to_tokens(inp_ids[end_index])
+
+                            # not at end of word
+                            if next_token.startswith("##"):
+                                continue
+
+                        gaz_labels = self.gazetteer.lookup(span_text)
+
+                        if gaz_labels:
+                            if self.gazetteer_add_output_features:
+                                gaz_feat = [0] * self.gazetteer.num_labels
+                                for label in gaz_labels:
+                                    gaz_feat[self.gazetteer.label_to_id[label]] = 1
+
+                                gaz_features.append(
+                                    (start_index, end_index - 1, span_length, gaz_feat)
+                                )
+
+                            if self.gazetteer_add_input_tokens:
+                                for label in gaz_labels:
+                                    inp["input_ids"].extend(
+                                        [
+                                            self.special_tokens_to_id[f"[{label}]"],
+                                            self.special_tokens_to_id[f"[/{label}]"],
+                                        ]
+                                    )
+                                    metad["position_ids"].extend([start_index, end_index - 1])
+                                    inp["token_type_ids"].extend([0, 0])
+                                    inp["attention_mask"].extend([1, 1])
+                                    inp["special_tokens_mask"].extend([1, 1])
+
+            if self.has_wiki_to_vec:
+                metad["wikipedia_entities"] = entity_spans
+
+            if self.has_gazetteer and self.gazetteer_add_output_features:
+                metad["gazetteer"] = gaz_features
 
     def encode_input(
         self, documents: List[Document]
@@ -127,6 +240,9 @@ class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
             }
             for inp in inputs
         ]
+
+        if self.has_wiki_to_vec or self.has_gazetteer:
+            self._add_features(inputs, metadata)
 
         return inputs, metadata, None
 
@@ -196,6 +312,7 @@ class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
         self, encodings: List[TransformerSpanClassificationTaskEncoding]
     ) -> TransformerSpanClassificationModelStepBatchEncoding:
         input_features = [encoding.input for encoding in encodings]
+        metadata = [encoding.metadata for encoding in encodings]
 
         inputs = self.tokenizer.pad(
             input_features,
@@ -206,6 +323,25 @@ class SpanClassificationTaskModule(_TransformerSpanClassificationTaskModule):
         )
 
         inputs = dict(inputs)
+
+        if self.has_gazetteer and self.gazetteer_add_input_tokens:
+            seq_length = inputs["input_ids"].shape[1]
+
+            position_ids = []
+            for metad in metadata:
+                start_position = metad["seq_len"]
+                end_position = start_position + (seq_length - len(metad["position_ids"]))
+                position_ids.append(
+                    list(metad["position_ids"]) + list(range(start_position, end_position))
+                )
+
+            inputs["position_ids"] = torch.tensor(position_ids, dtype=torch.int64)
+
+        if self.has_gazetteer and self.gazetteer_add_output_features:
+            inputs["gazetteer"] = [metad["gazetteer"] for metad in metadata]
+
+        if self.has_wiki_to_vec:
+            inputs["wikipedia_entities"] = [metad["wikipedia_entities"] for metad in metadata]
 
         if not encodings[0].has_target:
             return inputs, None
