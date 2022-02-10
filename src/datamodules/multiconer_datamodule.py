@@ -7,33 +7,20 @@ from torch.utils.data import DataLoader
 
 
 class MultiCoNERDataModule(LightningDataModule):
-    """
-    Example of LightningDataModule for MNIST dataset.
-
-    A DataModule implements 5 key methods:
-        - prepare_data (things to do on 1 GPU/TPU, not on every GPU/TPU in distributed mode)
-        - setup (things to do on every accelerator in distributed mode)
-        - train_dataloader (the training dataloader)
-        - val_dataloader (the validation dataloader(s))
-        - test_dataloader (the test dataloader(s))
-
-    This allows you to share a full dataset without explaining how to download,
-    split, transform and process the data.
-
-    Read the docs:
-        https://pytorch-lightning.readthedocs.io/en/latest/extensions/datamodules.html
-    """
-
     def __init__(
         self,
+        data_dir: str,
         task_module: TaskModule,
+        name: str = "en",
         batch_size: int = 32,
         num_workers: int = 0,
         pin_memory: bool = False,
     ):
         super().__init__()
 
+        self.data_dir = data_dir
         self.task_module = task_module
+        self.name = name
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -46,9 +33,9 @@ class MultiCoNERDataModule(LightningDataModule):
         return self.train_val_split[0]
 
     def setup(self, stage: Optional[str] = None):
-        """Load data. Set variables: self.data_train, self.data_val, self.data_test."""
-        train_documents = load_multiconer(split="train")
-        val_documents = load_multiconer(split="validation")
+        """Load data. Set variables: self.data_train, self.data_val."""
+        train_documents = load_multiconer(data_dir=self.data_dir, name=self.name, split="train")
+        val_documents = load_multiconer(data_dir=self.data_dir, name=self.name, split="validation")
 
         self.task_module.prepare(train_documents)
 

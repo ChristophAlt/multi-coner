@@ -36,13 +36,12 @@ def train(config: DictConfig) -> Optional[float]:
     log.info(f"Instantiating task module <{config.taskmodule._target_}>")
     task_module: TaskModule = hydra.utils.instantiate(
         config.taskmodule,
-        label_to_verbalizer=config.label_verbalizer,
     )
 
     # Init lightning datamodule
     log.info(f"Instantiating datamodule <{config.datamodule._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(
-        config.datamodule, task_module=task_module
+        config.datamodule, task_module=task_module,
     )
 
     datamodule.prepare_data()
@@ -52,10 +51,11 @@ def train(config: DictConfig) -> Optional[float]:
     log.info(f"Instantiating model <{config.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(
         config.model,
-        num_classes=len(task_module.label_to_id)
+        num_classes=len(task_module.label_to_id),
         t_total=len(datamodule.train_dataloader()) * config.trainer.max_epochs,
-        tokenizer_vocab_size=len(task_module.tokenizer),
         num_gazetteer_labels=task_module.gazetteer.num_labels,
+        tokenizer_vocab_size=len(task_module.tokenizer),
+        tokenizer_unk_token_id=task_module.tokenizer.mask_token_id,
     )
 
     # Init lightning callbacks
@@ -92,7 +92,7 @@ def train(config: DictConfig) -> Optional[float]:
     )
 
     task_module.save_pretrained(config.callbacks.model_checkpoint.dirpath)
-    task_module.tokenizer.save_pretrained(config.callbacks.model_checkpoint.dirpath)
+    # task_module.tokenizer.save_pretrained(config.callbacks.model_checkpoint.dirpath)
 
     # Train the model
     log.info("Starting training!")

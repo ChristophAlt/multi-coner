@@ -72,6 +72,7 @@ def print_config(
     fields: Sequence[str] = (
         "trainer",
         "model",
+        "taskmodule",
         "datamodule",
         "callbacks",
         "logger",
