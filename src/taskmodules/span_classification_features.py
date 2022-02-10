@@ -60,6 +60,7 @@ class SpanClassificationWithFeaturesTaskModule(_TransformerSpanClassificationTas
         label_pad_token_id: int = -100,
         label_to_id: Optional[Dict[str, int]] = None,
         ##
+        max_span_length: int = 8,
         wiki_to_vec_file: Optional[str] = None,
         gazetteer_path: Optional[str] = None,
         gazetteer_add_input_tokens: bool = False,
@@ -73,6 +74,7 @@ class SpanClassificationWithFeaturesTaskModule(_TransformerSpanClassificationTas
             max_length=max_length,
             pad_to_multiple_of=pad_to_multiple_of,
             label_pad_token_id=label_pad_token_id,
+            max_span_length=max_span_length,
             wiki_to_vec_file=wiki_to_vec_file,
             gazetteer_path=gazetteer_path,
             gazetteer_add_input_tokens=gazetteer_add_input_tokens,
@@ -88,6 +90,7 @@ class SpanClassificationWithFeaturesTaskModule(_TransformerSpanClassificationTas
         self.max_length = max_length
         self.pad_to_multiple_of = pad_to_multiple_of
         self.label_pad_token_id = label_pad_token_id
+        self.max_span_length = max_span_length
         self.gazetteer_add_input_tokens = gazetteer_add_input_tokens
         self.gazetteer_add_output_features = gazetteer_add_output_features
 

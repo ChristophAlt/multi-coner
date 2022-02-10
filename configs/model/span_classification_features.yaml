@@ -14,9 +14,4 @@ augment_input_prob: 0.2
 mlp_hidden_dim: 1024
 mlp_num_layers: 2
 
-use_gazetteer: False
-use_wiki_to_vec: False
-gazetteer_add_input_tokens: False
-gazetteer_add_output_features: False
 wiki_to_vec_file: null
-num_gazetteer_labels: null

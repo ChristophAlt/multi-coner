@@ -12,8 +12,8 @@ from pytorch_lightning import (
 )
 from pytorch_lightning.loggers import LightningLoggerBase
 
-from src.utils import utils
 from src.taskmodules.span_classification_features import SpanClassificationWithFeaturesTaskModule
+from src.utils import utils
 
 log = utils.get_logger(__name__)
 
@@ -77,6 +77,8 @@ def train(config: DictConfig) -> Optional[float]:
         config.model,
         **model_args,
     )
+
+    log.info(f"Model __dict__: {model.__dict__}")
 
     # Init lightning callbacks
     callbacks: List[Callback] = []

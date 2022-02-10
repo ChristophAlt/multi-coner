@@ -9,6 +9,7 @@ pad_to_multiple_of: null
 label_pad_token_id: -100
 label_to_id: null
 
+max_span_length: 8
 wiki_to_vec_file: null
 gazetteer_path: null
 gazetteer_add_input_tokens: False
