@@ -2,19 +2,18 @@ import logging
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import tqdm
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer
-from transformers.file_utils import PaddingStrategy
-from transformers.tokenization_utils_base import BatchEncoding, TruncationStrategy
-
+import tqdm
 from pytorch_ie.data.document import Annotation, Document, LabeledSpan
 from pytorch_ie.models.transformer_span_classification import (
     TransformerSpanClassificationModelBatchOutput,
     TransformerSpanClassificationModelStepBatchEncoding,
 )
 from pytorch_ie.taskmodules.taskmodule import Metadata, TaskEncoding, TaskModule
+from transformers import AutoTokenizer
+from transformers.file_utils import PaddingStrategy
+from transformers.tokenization_utils_base import BatchEncoding, TruncationStrategy
 
 """
 workflow:
@@ -51,7 +50,7 @@ class Gazetteer:
         self,
         alias_to_wikidata_id_path: str,
         wikidata_id_to_index_path: str,
-        lowercase: bool=True,
+        lowercase: bool = True,
     ) -> None:
         self.alias_to_ids = self._load_alias_to_wikidata_id(alias_to_wikidata_id_path)
         self.id_to_index = self._load_wikidata_id_to_index(wikidata_id_to_index_path)
@@ -409,7 +408,9 @@ class SpanClassificationWithGazetteerEmbeddingTaskModule(_TransformerSpanClassif
         for metad in metadata:
             start_position = metad["seq_len"]
             end_position = start_position + (seq_length - len(metad["position_ids"]))
-            position_ids.append(list(metad["position_ids"]) + list(range(start_position, end_position)))
+            position_ids.append(
+                list(metad["position_ids"]) + list(range(start_position, end_position))
+            )
 
         # input_["position_ids"] = torch.tensor(position_ids, dtype=torch.int64)
 

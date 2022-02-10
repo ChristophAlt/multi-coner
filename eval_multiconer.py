@@ -1,23 +1,32 @@
 import argparse
+import bisect
 import logging
 import os
-from pytorch_ie import Pipeline
-from src.models.span_clf_with_gazetteer import SpanClassificationWithGazetteerModel
-from src.taskmodules.span_clf_with_gazetteer import SpanClassificationWithGazetteerTaskModule
-from src.datamodules.datasets.multiconer import load_multiconer
 from itertools import accumulate
-import bisect
 from typing import List, Tuple
+
+from pytorch_ie import Pipeline
 from seqeval.metrics import classification_report
 from seqeval.scheme import IOB2
+
+from src.datamodules.datasets.multiconer import load_multiconer
+from src.models.span_clf_with_gazetteer import SpanClassificationWithGazetteerModel
+from src.taskmodules.span_clf_with_gazetteer import SpanClassificationWithGazetteerTaskModule
 
 
 def seqeval_score(documents, predict_field: str = "entities", filter_entities: bool = False):
     true_tags = []
     pred_tags = []
     for doc in documents:
-        _, doc_pred_tags = to_annotated_tokens(doc, predict_field=predict_field, filter_entities=filter_entities, use_annotations=False)
-        _, doc_true_tags = to_annotated_tokens(doc, predict_field=predict_field, filter_entities=filter_entities, use_annotations=True)
+        _, doc_pred_tags = to_annotated_tokens(
+            doc,
+            predict_field=predict_field,
+            filter_entities=filter_entities,
+            use_annotations=False,
+        )
+        _, doc_true_tags = to_annotated_tokens(
+            doc, predict_field=predict_field, filter_entities=filter_entities, use_annotations=True
+        )
 
         true_tags.append(doc_true_tags)
         pred_tags.append(doc_pred_tags)
@@ -30,10 +39,15 @@ def filter_pred_entities(entities, is_flat_ner: bool = True):
     filtered_entities = []
     for ent in sorted(entities, key=lambda e: e.score, reverse=True):
         for f_ent in filtered_entities:
-            if (ent.start < f_ent.start <= ent.end < f_ent.end) or (f_ent.start < ent.start <= f_ent.end < ent.end):
+            if (ent.start < f_ent.start <= ent.end < f_ent.end) or (
+                f_ent.start < ent.start <= f_ent.end < ent.end
+            ):
                 break
 
-            if is_flat_ner and (ent.start <= f_ent.start <= f_ent.end <= ent.end or f_ent.start <= ent.start <= ent.end <= f_ent.end):
+            if is_flat_ner and (
+                ent.start <= f_ent.start <= f_ent.end <= ent.end
+                or f_ent.start <= ent.start <= ent.end <= f_ent.end
+            ):
                 break
 
         else:
@@ -49,13 +63,26 @@ def char_to_token_span(start_char: int, end_char: int, token_starts: List[int]) 
     return new_start, new_end
 
 
-def to_annotated_tokens(document, predict_field: str = "entities", filter_entities: bool = True, use_annotations: bool = False):
+def to_annotated_tokens(
+    document,
+    predict_field: str = "entities",
+    filter_entities: bool = True,
+    use_annotations: bool = False,
+):
     text = document.text
 
     if use_annotations:
-        predictions = filter_pred_entities(document.annotations("entities"), is_flat_ner=True) if filter_entities else document.annotations("entities")
+        predictions = (
+            filter_pred_entities(document.annotations("entities"), is_flat_ner=True)
+            if filter_entities
+            else document.annotations("entities")
+        )
     else:
-        predictions = filter_pred_entities(document.predictions("entities"), is_flat_ner=True) if filter_entities else document.predictions("entities")
+        predictions = (
+            filter_pred_entities(document.predictions("entities"), is_flat_ner=True)
+            if filter_entities
+            else document.predictions("entities")
+        )
 
     tokens = text.split(" ")
 
@@ -135,16 +162,22 @@ def main():
     args = parser.parse_args()
 
     log_level = logging.DEBUG if args.debug else logging.INFO
-    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=log_level)
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=log_level
+    )
 
     # gazetteer_path = "/home/christoph/Projects/research/multi_coner/data/gazetteers-2/gazetteer-all.txt"
 
-    taskmodule = SpanClassificationWithGazetteerTaskModule.from_pretrained(args.model_path, use_efficient_gazetteer=False)
+    taskmodule = SpanClassificationWithGazetteerTaskModule.from_pretrained(
+        args.model_path, use_efficient_gazetteer=False
+    )
 
     if args.checkpoint is None:
         model = SpanClassificationWithGazetteerModel.from_pretrained(args.model_path)
     else:
-        model = SpanClassificationWithGazetteerModel.load_from_checkpoint(os.path.join(args.model_path, args.checkpoint))
+        model = SpanClassificationWithGazetteerModel.load_from_checkpoint(
+            os.path.join(args.model_path, args.checkpoint)
+        )
 
     model = model.eval()
 
@@ -160,12 +193,20 @@ def main():
 
     ner_pipeline(eval_documents, predict_field=predict_field, batch_size=args.batch_size)
 
-    print(seqeval_score(documents=eval_documents, predict_field=predict_field, filter_entities=args.filter_entities))
+    print(
+        seqeval_score(
+            documents=eval_documents,
+            predict_field=predict_field,
+            filter_entities=args.filter_entities,
+        )
+    )
 
     if args.pred_file is not None:
         out_lines = []
         for doc in eval_documents:
-            tokens, tags = to_annotated_tokens(doc, predict_field=predict_field, filter_entities=args.filter_entities)
+            tokens, tags = to_annotated_tokens(
+                doc, predict_field=predict_field, filter_entities=args.filter_entities
+            )
             for _, tag in zip(tokens, tags):
                 out_lines.append(tag + "\n")
 
@@ -177,6 +218,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

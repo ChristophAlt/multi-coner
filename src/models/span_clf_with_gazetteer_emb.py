@@ -1,8 +1,10 @@
+import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import logging
 import torch
 import torchmetrics
+from pytorch_ie.core.pytorch_ie import PyTorchIEModel
+from pytorch_ie.models.modules.mlp import MLP
 from torch import Tensor, nn
 from transformers import (
     AdamW,
@@ -12,8 +14,6 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
-from pytorch_ie.core.pytorch_ie import PyTorchIEModel
-from pytorch_ie.models.modules.mlp import MLP
 from src.models.split_embedding import SplitEmbedding
 
 TransformerSpanClassificationModelBatchEncoding = BatchEncoding
@@ -62,7 +62,9 @@ class SpanClassificationWithGazetteerEmbeddingModel(PyTorchIEModel):
         self.model = AutoModel.from_pretrained(model_name_or_path, config=config)
         self.model.resize_token_embeddings(tokenizer_vocab_size)
 
-        additional_embeddings = nn.Embedding.from_pretrained(torch.load(additional_embeddings_path), freeze=True)
+        additional_embeddings = nn.Embedding.from_pretrained(
+            torch.load(additional_embeddings_path), freeze=True
+        )
 
         split_embedding = SplitEmbedding(
             input_embeddings=self.model.get_input_embeddings(),
@@ -97,7 +99,9 @@ class SpanClassificationWithGazetteerEmbeddingModel(PyTorchIEModel):
             )
         else:
             # TODO: properly intialize!
-            self.classifier = nn.Linear(config.hidden_size * 2 + span_length_embedding_dim, num_classes)
+            self.classifier = nn.Linear(
+                config.hidden_size * 2 + span_length_embedding_dim, num_classes
+            )
 
         self.span_length_embedding = nn.Embedding(
             num_embeddings=max_span_length, embedding_dim=span_length_embedding_dim
@@ -168,7 +172,9 @@ class SpanClassificationWithGazetteerEmbeddingModel(PyTorchIEModel):
         batch_size, seq_length, hidden_dim = output.last_hidden_state.shape
 
         if self.layer_mean:
-            hidden_state = torch.mean(torch.stack(output.hidden_states), dim=0).view(batch_size * seq_length, hidden_dim)
+            hidden_state = torch.mean(torch.stack(output.hidden_states), dim=0).view(
+                batch_size * seq_length, hidden_dim
+            )
         else:
             hidden_state = output.last_hidden_state.view(batch_size * seq_length, hidden_dim)
 
@@ -278,11 +284,13 @@ class SpanClassificationWithGazetteerEmbeddingModel(PyTorchIEModel):
         # print("Parameters with task_learning_rate: ", [n for n, p in param_optimizer if "classifier" in n or "span_length_embedding" in n])
         # optimizer = AdamW(optimizer_grouped_parameters, lr=self.learning_rate)
         # print([n for n, p in self.named_parameters() if p.requires_grad])
-        optimizer = AdamW(filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate)
+        optimizer = AdamW(
+            filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate
+        )
         # print("Optim, Learning rates: ", [group["lr"] for group in optimizer.param_groups])
         # scheduler = get_linear_schedule_with_warmup(
         #     optimizer, int(self.t_total * self.warmup_proportion), self.t_total
         # )
         # return optimizer
-        return [optimizer]#, [scheduler]
+        return [optimizer]  # , [scheduler]
         # return torch.optim.Adam(self.parameters(), lr=self.learning_rate)

@@ -1,9 +1,10 @@
 from typing import List, Optional, Tuple
 
-from src.datamodules.datasets.multiconer import load_multiconer
 from pytorch_ie.taskmodules.taskmodule import TaskEncoding, TaskModule
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
+
+from src.datamodules.datasets.multiconer import load_multiconer
 
 
 class MultiCoNERDataModule(LightningDataModule):

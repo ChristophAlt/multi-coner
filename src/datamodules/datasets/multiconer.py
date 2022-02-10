@@ -1,12 +1,12 @@
+import os
 from typing import List, Union
 
-import os
-from src.datamodules.datasets import HF_DATASETS_ROOT
 from datasets import Dataset, IterableDataset, load_dataset
 from datasets.splits import Split
-
 from pytorch_ie.data.document import Document, LabeledSpan
 from pytorch_ie.data.span_utils import bio_tags_to_spans
+
+from src.datamodules.datasets import HF_DATASETS_ROOT
 
 
 def load_multiconer(

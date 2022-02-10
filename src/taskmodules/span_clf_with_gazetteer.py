@@ -2,20 +2,19 @@ import logging
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import tqdm
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer
-from transformers.file_utils import PaddingStrategy
-from transformers.tokenization_utils_base import BatchEncoding, TruncationStrategy
+import tqdm
 from gensim.models import KeyedVectors
-
 from pytorch_ie.data.document import Annotation, Document, LabeledSpan
 from pytorch_ie.models.transformer_span_classification import (
     TransformerSpanClassificationModelBatchOutput,
     TransformerSpanClassificationModelStepBatchEncoding,
 )
 from pytorch_ie.taskmodules.taskmodule import Metadata, TaskEncoding, TaskModule
+from transformers import AutoTokenizer
+from transformers.file_utils import PaddingStrategy
+from transformers.tokenization_utils_base import BatchEncoding, TruncationStrategy
 
 """
 workflow:
@@ -149,15 +148,26 @@ class SpanClassificationWithGazetteerTaskModule(_TransformerSpanClassificationTa
         self.use_efficient_gazetteer = use_efficient_gazetteer
 
         if self.use_efficient_gazetteer:
+
             def prepare_key(key):
                 key = key.replace("/", " / ").replace("_", " ")
                 ids = tuple(self.tokenizer(key, add_special_tokens=False)["input_ids"])
                 return ids
 
-            self.wiki_to_vec_key_to_index = {prepare_key(key.lower()): index + 1 for key, index in tqdm.tqdm(KeyedVectors.load(wiki_to_vec_file).key_to_index.items())}
-            self.gazetteer = EfficientGazetteer(gazetteer_path, tokenizer=self.tokenizer, lowercase=True)
+            self.wiki_to_vec_key_to_index = {
+                prepare_key(key.lower()): index + 1
+                for key, index in tqdm.tqdm(
+                    KeyedVectors.load(wiki_to_vec_file).key_to_index.items()
+                )
+            }
+            self.gazetteer = EfficientGazetteer(
+                gazetteer_path, tokenizer=self.tokenizer, lowercase=True
+            )
         else:
-            self.wiki_to_vec_key_to_index = {key.lower(): index + 1 for key, index in KeyedVectors.load(wiki_to_vec_file).key_to_index.items()}
+            self.wiki_to_vec_key_to_index = {
+                key.lower(): index + 1
+                for key, index in KeyedVectors.load(wiki_to_vec_file).key_to_index.items()
+            }
             self.gazetteer = Gazetteer(gazetteer_path, lowercase=True)
 
         self.entity_annotation = entity_annotation
@@ -226,15 +236,21 @@ class SpanClassificationWithGazetteerTaskModule(_TransformerSpanClassificationTa
                     span_inp_ids = inp_ids[start_index:end_index]
 
                     if self.use_efficient_gazetteer:
-                        entity_index = self.wiki_to_vec_key_to_index.get(entity_ids + tuple(span_inp_ids))
+                        entity_index = self.wiki_to_vec_key_to_index.get(
+                            entity_ids + tuple(span_inp_ids)
+                        )
                         gaz_labels = self.gazetteer.lookup(tuple(span_inp_ids))
                     else:
                         span_text = self.tokenizer.decode(span_inp_ids)
-                        entity_index = self.wiki_to_vec_key_to_index.get("entity/" + span_text.replace(" ", "_"))
+                        entity_index = self.wiki_to_vec_key_to_index.get(
+                            "entity/" + span_text.replace(" ", "_")
+                        )
                         gaz_labels = self.gazetteer.lookup(span_text)
 
                     if entity_index is not None:
-                        entity_spans.append((start_index, end_index - 1, span_length, entity_index))
+                        entity_spans.append(
+                            (start_index, end_index - 1, span_length, entity_index)
+                        )
 
                     if len(span_text) <= 3:
                         continue
@@ -254,7 +270,12 @@ class SpanClassificationWithGazetteerTaskModule(_TransformerSpanClassificationTa
                         gaz_features.append((start_index, end_index - 1, span_length, gaz_feat))
 
                         for label in gaz_labels:
-                            inp["input_ids"].extend([self.special_tokens_to_id[f"[{label}]"], self.special_tokens_to_id[f"[/{label}]"]])
+                            inp["input_ids"].extend(
+                                [
+                                    self.special_tokens_to_id[f"[{label}]"],
+                                    self.special_tokens_to_id[f"[/{label}]"],
+                                ]
+                            )
                             metad["position_ids"].extend([start_index, end_index - 1])
                             inp["token_type_ids"].extend([0, 0])
                             inp["attention_mask"].extend([1, 1])
@@ -479,7 +500,9 @@ class SpanClassificationWithGazetteerTaskModule(_TransformerSpanClassificationTa
         for metad in metadata:
             start_position = metad["seq_len"]
             end_position = start_position + (seq_length - len(metad["position_ids"]))
-            position_ids.append(list(metad["position_ids"]) + list(range(start_position, end_position)))
+            position_ids.append(
+                list(metad["position_ids"]) + list(range(start_position, end_position))
+            )
 
         input_["position_ids"] = torch.tensor(position_ids, dtype=torch.int64)
 

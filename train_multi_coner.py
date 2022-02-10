@@ -1,14 +1,12 @@
 import logging
+
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import BaseFinetuning, LearningRateMonitor
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import BaseFinetuning, LearningRateMonitor, ModelCheckpoint
 from torch.utils.data import DataLoader
 
 from src.datamodules.datasets.multiconer import load_multiconer
 from src.models.span_clf_with_gazetteer import SpanClassificationWithGazetteerModel
-from src.taskmodules.span_clf_with_gazetteer import (
-    SpanClassificationWithGazetteerTaskModule,
-)
+from src.taskmodules.span_clf_with_gazetteer import SpanClassificationWithGazetteerTaskModule
 
 
 class FreezeUnfreezeCallback(BaseFinetuning):
@@ -35,7 +33,9 @@ class FreezeUnfreezeCallback(BaseFinetuning):
 
 def main():
     log_level = logging.DEBUG
-    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=log_level)
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=log_level
+    )
 
     pl.seed_everything(42)
 

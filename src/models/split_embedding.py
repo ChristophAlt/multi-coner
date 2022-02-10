@@ -7,7 +7,7 @@ class SplitEmbedding(nn.Module):
         self,
         input_embeddings: nn.Embedding,
         additional_embeddings: nn.Embedding,
-        threshold_value: int
+        threshold_value: int,
     ) -> None:
         super(SplitEmbedding, self).__init__()
         self.input_embeddings = input_embeddings
@@ -32,7 +32,7 @@ class SplitEmbedding(nn.Module):
         Returns:
             torch.float: encoding of text concatenated with learned task specifc embedding
         """
-        additional_emb_mask = (tokens >= self.threshold_value)
+        additional_emb_mask = tokens >= self.threshold_value
 
         additional_emb_tokens = tokens[additional_emb_mask] - self.threshold_value
 

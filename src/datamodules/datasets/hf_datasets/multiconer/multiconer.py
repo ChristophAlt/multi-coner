@@ -1,11 +1,17 @@
-from posixpath import split
-import datasets
 import os
 import re
 import typing as T
-from conllu.models import TokenList
-from conllu.parser import _FieldParserType, _MetadataParserType, parse_sentences, parse_conllu_plus_fields, parse_sentences, parse_token_and_metadata
+from posixpath import split
 
+import datasets
+from conllu.models import TokenList
+from conllu.parser import (
+    _FieldParserType,
+    _MetadataParserType,
+    parse_conllu_plus_fields,
+    parse_sentences,
+    parse_token_and_metadata,
+)
 
 logger = datasets.logging.get_logger(__name__)
 
@@ -23,11 +29,13 @@ _DATA_DIRS = {
 }
 
 
-def _parse_incr(in_file: T.TextIO, fields: T.Optional[T.Sequence[str]] = None,
-                field_parsers: T.Dict[str, _FieldParserType] = None,
-                metadata_parsers: T.Optional[T.Dict[str, _MetadataParserType]] = None
-                ) -> T.Iterator[TokenList]:
-    if not hasattr(in_file, 'read'):
+def _parse_incr(
+    in_file: T.TextIO,
+    fields: T.Optional[T.Sequence[str]] = None,
+    field_parsers: T.Dict[str, _FieldParserType] = None,
+    metadata_parsers: T.Optional[T.Dict[str, _MetadataParserType]] = None,
+) -> T.Iterator[TokenList]:
+    if not hasattr(in_file, "read"):
         raise FileNotFoundError("Invalid file, 'parse_incr' needs an opened file as input")
 
     if not fields:
@@ -36,10 +44,7 @@ def _parse_incr(in_file: T.TextIO, fields: T.Optional[T.Sequence[str]] = None,
     for sentence in parse_sentences(in_file):
         sentence = re.sub(" ", "  ", sentence)
         yield parse_token_and_metadata(
-            sentence,
-            fields=fields,
-            field_parsers=field_parsers,
-            metadata_parsers=metadata_parsers
+            sentence, fields=fields, field_parsers=field_parsers, metadata_parsers=metadata_parsers
         )
 
 
@@ -58,8 +63,12 @@ class MultiCoNER(datasets.GeneratorBasedBuilder):
     """MultiCoNER dataset."""
 
     BUILDER_CONFIGS = [
-        MultiCoNERConfig(name="en", version=datasets.Version("1.0.0"), description="English MultiCoNER dataset"),
-        MultiCoNERConfig(name="de", version=datasets.Version("1.0.0"), description="German MultiCoNER dataset"),
+        MultiCoNERConfig(
+            name="en", version=datasets.Version("1.0.0"), description="English MultiCoNER dataset"
+        ),
+        MultiCoNERConfig(
+            name="de", version=datasets.Version("1.0.0"), description="German MultiCoNER dataset"
+        ),
     ]
 
     def _info(self):
@@ -114,18 +123,24 @@ class MultiCoNER(datasets.GeneratorBasedBuilder):
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
                 gen_kwargs={
-                    "filepath": os.path.join(data_dir, _DATA_DIRS[self.config.name], self.config.name + "_train.conll"),
+                    "filepath": os.path.join(
+                        data_dir, _DATA_DIRS[self.config.name], self.config.name + "_train.conll"
+                    ),
                 },
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,
                 gen_kwargs={
-                    "filepath": os.path.join(data_dir, _DATA_DIRS[self.config.name], self.config.name + "_dev.conll"),
+                    "filepath": os.path.join(
+                        data_dir, _DATA_DIRS[self.config.name], self.config.name + "_dev.conll"
+                    ),
                 },
             ),
         ]
 
-        test_filepath = os.path.join(data_dir, _DATA_DIRS[self.config.name], self.config.name + "_test.conll")
+        test_filepath = os.path.join(
+            data_dir, _DATA_DIRS[self.config.name], self.config.name + "_test.conll"
+        )
 
         if os.path.isfile(test_filepath):
             split_generators.append(

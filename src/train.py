@@ -1,8 +1,8 @@
 from typing import List, Optional
 
 import hydra
-from pytorch_ie.taskmodules.taskmodule import TaskModule
 from omegaconf import DictConfig
+from pytorch_ie.taskmodules.taskmodule import TaskModule
 from pytorch_lightning import (
     Callback,
     LightningDataModule,
@@ -41,7 +41,8 @@ def train(config: DictConfig) -> Optional[float]:
     # Init lightning datamodule
     log.info(f"Instantiating datamodule <{config.datamodule._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(
-        config.datamodule, task_module=task_module,
+        config.datamodule,
+        task_module=task_module,
     )
 
     datamodule.prepare_data()

@@ -1,11 +1,12 @@
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import BaseFinetuning, LearningRateMonitor
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import BaseFinetuning, LearningRateMonitor, ModelCheckpoint
 from torch.utils.data import DataLoader
 
 from src.datamodules.datasets.multiconer import load_multiconer
 from src.models.span_clf_with_gazetteer_emb import SpanClassificationWithGazetteerEmbeddingModel
-from src.taskmodules.span_clf_with_gazetteer_emb import SpanClassificationWithGazetteerEmbeddingTaskModule
+from src.taskmodules.span_clf_with_gazetteer_emb import (
+    SpanClassificationWithGazetteerEmbeddingTaskModule,
+)
 
 
 class FreezeUnfreezeCallback(BaseFinetuning):
@@ -23,7 +24,7 @@ class FreezeUnfreezeCallback(BaseFinetuning):
                 modules=pl_module.model,
                 optimizer=optimizer,
                 # lr=1e-4,
-                initial_denom_lr=1.,
+                initial_denom_lr=1.0,
                 train_bn=False,
             )
 
@@ -34,7 +35,9 @@ class FreezeUnfreezeCallback(BaseFinetuning):
 def main():
     pl.seed_everything(42)
 
-    additional_embeddings_path = "/home/christoph/Projects/research/multi_coner/data/embeddings/wikipedia_lowercased.pt"
+    additional_embeddings_path = (
+        "/home/christoph/Projects/research/multi_coner/data/embeddings/wikipedia_lowercased.pt"
+    )
     alias_to_wikidata_id_path = "/home/christoph/Downloads/wikidata5m_alias/wikidata5m_entity.txt"
     wikidata_id_to_index_path = "/home/christoph/Projects/research/multi_coner/data/embeddings/wikipedia_ids_lowercased.txt"
 
