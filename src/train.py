@@ -78,7 +78,7 @@ def train(config: DictConfig) -> Optional[float]:
         **model_args,
     )
 
-    log.info(f"Model __dict__: {model.__dict__}")
+    log.info(f"Model arguments: {model.hparams}")
 
     # Init lightning callbacks
     callbacks: List[Callback] = []
@@ -113,8 +113,9 @@ def train(config: DictConfig) -> Optional[float]:
         logger=logger,
     )
 
-    task_module.save_pretrained(config.callbacks.model_checkpoint.dirpath)
-    # task_module.tokenizer.save_pretrained(config.callbacks.model_checkpoint.dirpath)
+    if "model_checkpoint" in config.callbacks:
+        task_module.save_pretrained(config.callbacks.model_checkpoint.dirpath)
+        # task_module.tokenizer.save_pretrained(config.callbacks.model_checkpoint.dirpath)
 
     # Train the model
     log.info("Starting training!")

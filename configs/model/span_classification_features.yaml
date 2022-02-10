@@ -11,6 +11,7 @@ freeze_model: False
 layer_mean: False
 augment_input: False
 augment_input_prob: 0.2
+use_mlp: True
 mlp_hidden_dim: 1024
 mlp_num_layers: 2
 

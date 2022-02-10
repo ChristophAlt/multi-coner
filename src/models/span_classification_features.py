@@ -42,6 +42,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         layer_mean: bool = False,
         augment_input: bool = False,
         augment_input_prob: float = 0.2,
+        use_mlp: bool = True,
         mlp_hidden_dim: int = 1024,
         mlp_num_layers: int = 2,
         dropout_prob: float = 0.1,
@@ -115,12 +116,18 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
 
         self.dropout = nn.Dropout(self.dropout_prob)
 
-        self.classifier = MLP(
-            input_dim=joint_embedding_dim,
-            output_dim=num_classes,
-            hidden_dim=mlp_hidden_dim,
-            num_layers=mlp_num_layers,
-        )
+        if use_mlp:
+            self.classifier = MLP(
+                input_dim=joint_embedding_dim,
+                output_dim=num_classes,
+                hidden_dim=mlp_hidden_dim,
+                num_layers=mlp_num_layers,
+            )
+        else:
+            self.classifier = nn.Linear(
+                in_features=joint_embedding_dim,
+                out_features=num_classes,
+            )
 
         self.loss_fct = nn.CrossEntropyLoss()
 

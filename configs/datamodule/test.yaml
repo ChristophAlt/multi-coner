@@ -1,0 +1,5 @@
+_target_: src.datamodules.test_datamodule.TestDataModule
+
+batch_size: 3
+num_workers: 0
+pin_memory: False
