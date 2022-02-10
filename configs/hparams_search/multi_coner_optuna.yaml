@@ -9,7 +9,7 @@ defaults:
     - override /hydra/sweeper: optuna
 
 # choose metric which will be optimized by Optuna
-optimized_metric: "val/acc"
+optimized_metric: "val/f1"
 
 hydra:
     # here we define Optuna hyperparameter search
@@ -45,17 +45,12 @@ hydra:
         search_space:
             datamodule.batch_size:
                 type: categorical
-                choices: [32, 64, 128]
-            model.lr:
+                choices: [16, 32, 64]
+            model.learning_rate:
                 type: float
-                low: 0.0001
-                high: 0.2
-            model.lin1_size:
-                type: categorical
-                choices: [32, 64, 128, 256, 512]
-            model.lin2_size:
-                type: categorical
-                choices: [32, 64, 128, 256, 512]
-            model.lin3_size:
-                type: categorical
-                choices: [32, 64, 128, 256, 512]
+                low: 1e-5
+                high: 1e-4
+            model.task_learning_rate:
+                type: float
+                low: 1e-5
+                high: 1e-4

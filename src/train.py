@@ -50,13 +50,19 @@ def train(config: DictConfig) -> Optional[float]:
 
     # Init lightning model
     log.info(f"Instantiating model <{config.model._target_}>")
-    model: LightningModule = hydra.utils.instantiate(
-        config.model,
+    model_args = dict(
         num_classes=len(task_module.label_to_id),
         t_total=len(datamodule.train_dataloader()) * config.trainer.max_epochs,
-        num_gazetteer_labels=task_module.gazetteer.num_labels,
         tokenizer_vocab_size=len(task_module.tokenizer),
-        tokenizer_unk_token_id=task_module.tokenizer.mask_token_id,
+        tokenizer_mask_token_id=task_module.tokenizer.mask_token_id,
+    )
+
+    if hasattr(task_module, "gazetteer"):
+        model_args["num_gazetteer_labels"] = task_module.gazetteer.num_labels
+
+    model: LightningModule = hydra.utils.instantiate(
+        config.model,
+        **model_args,
     )
 
     # Init lightning callbacks
