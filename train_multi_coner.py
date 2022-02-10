@@ -45,7 +45,7 @@ def main():
 
     gazetteer_path = "/home/christoph/Projects/research/notebooks/gazetteers/gaz_combined_3.txt"
 
-    # model_name = "bert-base-uncased"
+    # tokenizer_name_or_path = "bert-base-uncased"
     tokenizer_name_or_path = "google/electra-large-discriminator"
     model_name_or_path = tokenizer_name_or_path
     num_epochs = 100

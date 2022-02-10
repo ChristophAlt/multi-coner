@@ -88,13 +88,15 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
         self.classifier = MLP(
             input_dim=config.hidden_size * 2 + span_length_embedding_dim + entity_embedding_dim + self.num_gazetteer_labels,
             output_dim=num_classes,
-            hidden_dim=150,
+            hidden_dim=1024,
             num_layers=2,
         )
 
         self.span_length_embedding = nn.Embedding(
             num_embeddings=max_span_length, embedding_dim=span_length_embedding_dim
         )
+
+        self.layer_norm = nn.LayerNorm(config.hidden_size * 2 + span_length_embedding_dim + entity_embedding_dim + self.num_gazetteer_labels)
 
         self.loss_fct = nn.CrossEntropyLoss()
 
@@ -236,7 +238,7 @@ class SpanClassificationWithGazetteerModel(PyTorchIEModel):
             # (start_embedding, end_embedding, span_length_embedding, wiki_embedding), dim=-1
         )
 
-        logits = self.classifier(self.dropout(combined_embedding))
+        logits = self.classifier(self.dropout(self.layer_norm(combined_embedding)))
 
         return {
             "logits": logits,
