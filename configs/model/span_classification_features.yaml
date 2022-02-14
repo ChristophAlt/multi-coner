@@ -16,4 +16,5 @@ mlp_hidden_dim: 1024
 mlp_num_layers: 2
 
 use_language_model: True
+use_span_length_embedding: True
 wiki_to_vec_file: null

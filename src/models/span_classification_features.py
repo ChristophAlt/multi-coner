@@ -52,6 +52,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         dropout_prob: float = 0.1,
         ##
         use_language_model: bool = True,
+        use_span_length_embedding: bool = True,
         use_gazetteer: bool = False,
         use_wiki_to_vec: bool = False,
         gazetteer_add_input_tokens: bool = False,
@@ -84,6 +85,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         self.dropout_prob = dropout_prob
 
         self.use_language_model = use_language_model
+        self.use_span_length_embedding = use_span_length_embedding
         self.use_gazetteer = use_gazetteer
         self.use_wiki_to_vec = use_wiki_to_vec
         self.gazetteer_add_input_tokens = gazetteer_add_input_tokens
@@ -103,6 +105,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
                 for param in self.model.parameters():
                     param.requires_grad = False
 
+        if self.use_span_length_embedding:
             self.span_length_embedding = nn.Embedding(
                 num_embeddings=max_span_length, embedding_dim=span_length_embedding_dim
             )
@@ -334,9 +337,12 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
 
             start_embedding = hidden_state[offsets + start_indices, :]
             end_embedding = hidden_state[offsets + end_indices, :]
-            span_length_embedding = self.span_length_embedding(span_length.to(device))
 
-            all_embeddings.extend([start_embedding, end_embedding, span_length_embedding])
+            all_embeddings.extend([start_embedding, end_embedding])
+
+        if self.use_span_length_embedding:
+            span_length_embedding = self.span_length_embedding(span_length.to(device))
+            all_embeddings.append(span_length_embedding)
 
         all_embeddings.extend(
             self._get_additional_embeddings(
