@@ -91,6 +91,8 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         self.gazetteer_add_input_tokens = gazetteer_add_input_tokens
         self.gazetteer_add_output_features = gazetteer_add_output_features
         self.num_gazetteer_labels = num_gazetteer_labels
+        self.hide_wiki_features = False
+        self.hide_gazetteer_features = False
 
         joint_embedding_dim = 0
 
@@ -288,11 +290,19 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
 
         if add_wiki_features:
             wiki_ids = torch.tensor(wiki_indices).to(device)
+
+            if self.hide_wiki_features:
+                wiki_ids = torch.zeros_like(wiki_ids).to(device)
+
             entity_embeddings = self.entity_embeddings(wiki_ids)
             additional_embeddings.append(entity_embeddings)
 
         if add_gazetteer_features:
             gazetter_feature_embeddings = torch.tensor(gaz_features).to(device).float()
+
+            if self.hide_gazetteer_features:
+                gazetter_feature_embeddings = torch.zeros_like(gazetter_feature_embeddings).to(device).float()
+
             additional_embeddings.append(gazetter_feature_embeddings)
 
         return additional_embeddings
