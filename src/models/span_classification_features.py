@@ -1,5 +1,6 @@
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import logging
 import torch
 import torchmetrics
 from gensim.models import KeyedVectors
@@ -21,6 +22,9 @@ TransformerSpanClassificationModelStepBatchEncoding = Tuple[
     Dict[str, Tensor],
     Optional[List[List[Tuple[int, int, int]]]],
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 class SpanClassificationWithFeaturesModel(PyTorchIEModel):
@@ -47,6 +51,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         mlp_num_layers: int = 2,
         dropout_prob: float = 0.1,
         ##
+        use_language_model: bool = True,
         use_gazetteer: bool = False,
         use_wiki_to_vec: bool = False,
         gazetteer_add_input_tokens: bool = False,
@@ -78,21 +83,31 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         self.augment_input_prob = augment_input_prob
         self.dropout_prob = dropout_prob
 
+        self.use_language_model = use_language_model
         self.use_gazetteer = use_gazetteer
         self.use_wiki_to_vec = use_wiki_to_vec
         self.gazetteer_add_input_tokens = gazetteer_add_input_tokens
         self.gazetteer_add_output_features = gazetteer_add_output_features
         self.num_gazetteer_labels = num_gazetteer_labels
 
-        config = AutoConfig.from_pretrained(model_name_or_path)
-        self.model = AutoModel.from_pretrained(model_name_or_path, config=config)
-        self.model.resize_token_embeddings(self.tokenizer_vocab_size)
+        joint_embedding_dim = 0
 
-        if freeze_model:
-            for param in self.model.parameters():
-                param.requires_grad = False
+        if self.use_language_model:
+            config = AutoConfig.from_pretrained(model_name_or_path)
+            self.model = AutoModel.from_pretrained(model_name_or_path, config=config)
+            self.model.resize_token_embeddings(self.tokenizer_vocab_size)
 
-        joint_embedding_dim = config.hidden_size * 2 + span_length_embedding_dim
+            joint_embedding_dim += config.hidden_size * 2
+
+            if freeze_model:
+                for param in self.model.parameters():
+                    param.requires_grad = False
+
+            self.span_length_embedding = nn.Embedding(
+                num_embeddings=max_span_length, embedding_dim=span_length_embedding_dim
+            )
+
+            joint_embedding_dim += span_length_embedding_dim
 
         if self.use_wiki_to_vec:
             entity_embeddings = torch.from_numpy(KeyedVectors.load(wiki_to_vec_file).vectors)
@@ -108,13 +123,12 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
             assert self.num_gazetteer_labels is not None
             joint_embedding_dim += self.num_gazetteer_labels
 
-        self.span_length_embedding = nn.Embedding(
-            num_embeddings=max_span_length, embedding_dim=span_length_embedding_dim
-        )
 
         self.layer_norm = nn.LayerNorm(joint_embedding_dim)
 
         self.dropout = nn.Dropout(self.dropout_prob)
+
+        logger.info("Joint embedding dim: {}".format(joint_embedding_dim))
 
         if use_mlp:
             self.classifier = MLP(
@@ -276,7 +290,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
             additional_embeddings.append(entity_embeddings)
 
         if add_gazetteer_features:
-            gazetter_feature_embeddings = torch.tensor(gaz_features).to(device)
+            gazetter_feature_embeddings = torch.tensor(gaz_features).to(device).float()
             additional_embeddings.append(gazetter_feature_embeddings)
 
         return additional_embeddings
@@ -287,16 +301,8 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         wikipedia_entities = inputs.pop("wikipedia_entities", None)
         gazetteer_features = inputs.pop("gazetteer", None)
 
-        output = self.model(**inputs, output_hidden_states=self.layer_mean)
-
-        batch_size, seq_length, hidden_dim = output.last_hidden_state.shape
-
-        if self.layer_mean:
-            hidden_state = torch.mean(torch.stack(output.hidden_states), dim=0).view(
-                batch_size * seq_length, hidden_dim
-            )
-        else:
-            hidden_state = output.last_hidden_state.view(batch_size * seq_length, hidden_dim)
+        batch_size, seq_length = inputs["input_ids"].shape[:2]
+        device = inputs["input_ids"].device
 
         seq_lengths = None
         if "attention_mask" in inputs:
@@ -312,17 +318,32 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
             batch_size=batch_size, max_seq_length=seq_length, seq_lengths=seq_lengths
         )
 
-        start_embedding = hidden_state[offsets + start_indices, :]
-        end_embedding = hidden_state[offsets + end_indices, :]
-        span_length_embedding = self.span_length_embedding(span_length.to(hidden_state.device))
+        all_embeddings = []
 
-        all_embeddings = [start_embedding, end_embedding, span_length_embedding]
+        if self.use_language_model:
+            output = self.model(**inputs, output_hidden_states=self.layer_mean)
+
+            hidden_dim = output.last_hidden_state.shape[-1]
+
+            if self.layer_mean:
+                hidden_state = torch.mean(torch.stack(output.hidden_states), dim=0).view(
+                    batch_size * seq_length, hidden_dim
+                )
+            else:
+                hidden_state = output.last_hidden_state.view(batch_size * seq_length, hidden_dim)
+
+            start_embedding = hidden_state[offsets + start_indices, :]
+            end_embedding = hidden_state[offsets + end_indices, :]
+            span_length_embedding = self.span_length_embedding(span_length.to(device))
+
+            all_embeddings.extend([start_embedding, end_embedding, span_length_embedding])
+
         all_embeddings.extend(
             self._get_additional_embeddings(
                 wikipedia_entities,
                 gazetteer_features,
                 batch_size=batch_size,
-                device=hidden_state.device,
+                device=device,
                 max_seq_length=seq_length,
                 seq_lengths=seq_lengths,
             )
@@ -349,7 +370,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         if "attention_mask" in inputs:
             seq_length_without_padding = torch.sum(inputs["attention_mask"], dim=-1)
 
-        if augment_inputs:
+        if self.use_language_model and augment_inputs:
             inputs["input_ids"] = self._mask_input_tokens(inputs)
 
         output = self(inputs)

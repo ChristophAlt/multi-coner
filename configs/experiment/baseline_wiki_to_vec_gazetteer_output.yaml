@@ -1,0 +1,29 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=example_simple.yaml
+
+defaults:
+    - override /trainer: default.yaml
+    - override /model: span_classification_features.yaml
+    - override /taskmodule: span_classification_features.yaml
+    - override /datamodule: multi_coner_en.yaml
+    - override /callbacks: default.yaml
+    - override /logger: null
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model:
+    use_language_model: False
+
+taskmodule:
+    gazetteer_add_input_tokens: False
+    gazetteer_add_output_features: True
+
+logger:
+    wandb:
+        tags: ["baseline", "wiki2vec features", "gazetter output features"]
+        notes: "Baseline, wiki2vec and multi-hot gazetteer output features."
+        project: multi-coner
+        group: baselines
