@@ -14,6 +14,7 @@ augment_input_prob: 0.2
 use_mlp: True
 mlp_hidden_dim: 1024
 mlp_num_layers: 2
+dropout_prob: 0.1
 
 use_language_model: True
 use_span_length_embedding: True
