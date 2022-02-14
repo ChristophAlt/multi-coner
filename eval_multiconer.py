@@ -210,9 +210,6 @@ MODEL_TYPE_TO_CLASS = {
     "span_classification_gazetteer": SpanClassificationWithGazetteerModel,
 }
 
-gazetteer_path = "/home/christoph/Projects/research/notebooks/gazetteers/gaz_combined_3.txt"
-wiki_to_vec_file = "/home/christoph/Downloads/enwiki_20180420_100d.kv"
-
 
 def main():
     args = parser.parse_args()
@@ -226,15 +223,13 @@ def main():
     model_class = MODEL_TYPE_TO_CLASS[args.model_type]
 
     taskmodule = taskmodule_class.from_pretrained(
-        args.model_path, wiki_to_vec_file=wiki_to_vec_file, gazetteer_path=gazetteer_path
+        args.model_path,
     )
 
     if args.checkpoint is None:
-        model = model_class.from_pretrained(args.model_path, wiki_to_vec_file=wiki_to_vec_file)
+        model = model_class.from_pretrained(args.model_path)
     else:
-        model = model_class.load_from_checkpoint(
-            os.path.join(args.model_path, args.checkpoint), wiki_to_vec_file=wiki_to_vec_file
-        )
+        model = model_class.load_from_checkpoint(os.path.join(args.model_path, args.checkpoint))
 
     model = model.eval()
 
