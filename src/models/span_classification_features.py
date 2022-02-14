@@ -1,6 +1,6 @@
+import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import logging
 import torch
 import torchmetrics
 from gensim.models import KeyedVectors
@@ -125,7 +125,6 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         if self.use_gazetteer and self.gazetteer_add_output_features:
             assert self.num_gazetteer_labels is not None
             joint_embedding_dim += self.num_gazetteer_labels
-
 
         self.layer_norm = nn.LayerNorm(joint_embedding_dim)
 

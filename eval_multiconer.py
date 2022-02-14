@@ -1,5 +1,6 @@
 import argparse
 import bisect
+import json
 import logging
 import os
 from itertools import accumulate
@@ -17,7 +18,12 @@ from src.taskmodules.span_classification_features import SpanClassificationWithF
 from src.taskmodules.span_clf_with_gazetteer import SpanClassificationWithGazetteerTaskModule
 
 
-def seqeval_score(documents, predict_field: str = "entities", filter_entities: bool = False):
+def seqeval_score(
+    documents,
+    predict_field: str = "entities",
+    filter_entities: bool = False,
+    output_dict: bool = False,
+):
     true_tags = []
     pred_tags = []
     for doc in documents:
@@ -34,7 +40,9 @@ def seqeval_score(documents, predict_field: str = "entities", filter_entities: b
         true_tags.append(doc_true_tags)
         pred_tags.append(doc_pred_tags)
 
-    results = classification_report(y_true=true_tags, y_pred=pred_tags, digits=4)
+    results = classification_report(
+        y_true=true_tags, y_pred=pred_tags, digits=4, output_dict=output_dict
+    )
     return results
 
 
@@ -112,14 +120,22 @@ parser.add_argument(
     "--taskmodule-type",
     required=True,
     type=str,
-    choices=["span_classification", "span_classification_features", "span_classification_gazetteer"],
+    choices=[
+        "span_classification",
+        "span_classification_features",
+        "span_classification_gazetteer",
+    ],
     help="the type of the task module corresponding to the model to be evaluated",
 )
 parser.add_argument(
     "--model-type",
     required=True,
     type=str,
-    choices=["span_classification", "span_classification_features", "span_classification_gazetteer"],
+    choices=[
+        "span_classification",
+        "span_classification_features",
+        "span_classification_gazetteer",
+    ],
     help="the type of the model to be evaluated",
 )
 parser.add_argument(
@@ -141,6 +157,13 @@ parser.add_argument(
     type=str,
     default=None,
     help="path to store the predictions",
+)
+parser.add_argument(
+    "--result-file",
+    required=False,
+    type=str,
+    default=None,
+    help="path to store the evaluation results",
 )
 parser.add_argument(
     "--batch-size",
@@ -190,6 +213,7 @@ MODEL_TYPE_TO_CLASS = {
 gazetteer_path = "/home/christoph/Projects/research/notebooks/gazetteers/gaz_combined_3.txt"
 wiki_to_vec_file = "/home/christoph/Downloads/enwiki_20180420_100d.kv"
 
+
 def main():
     args = parser.parse_args()
 
@@ -201,12 +225,16 @@ def main():
     taskmodule_class = TASKMODULE_TYPE_TO_CLASS[args.taskmodule_type]
     model_class = MODEL_TYPE_TO_CLASS[args.model_type]
 
-    taskmodule = taskmodule_class.from_pretrained(args.model_path, wiki_to_vec_file=wiki_to_vec_file, gazetteer_path=gazetteer_path)
+    taskmodule = taskmodule_class.from_pretrained(
+        args.model_path, wiki_to_vec_file=wiki_to_vec_file, gazetteer_path=gazetteer_path
+    )
 
     if args.checkpoint is None:
         model = model_class.from_pretrained(args.model_path, wiki_to_vec_file=wiki_to_vec_file)
     else:
-        model = model_class.load_from_checkpoint(os.path.join(args.model_path, args.checkpoint), wiki_to_vec_file=wiki_to_vec_file)
+        model = model_class.load_from_checkpoint(
+            os.path.join(args.model_path, args.checkpoint), wiki_to_vec_file=wiki_to_vec_file
+        )
 
     model = model.eval()
 
@@ -229,6 +257,23 @@ def main():
             filter_entities=args.filter_entities,
         )
     )
+
+    if args.result_file is not None:
+        result_dict = seqeval_score(
+            documents=eval_documents,
+            predict_field=predict_field,
+            filter_entities=args.filter_entities,
+            output_dict=True,
+        )
+
+        import numpy
+
+        def numpy_encoder(object):
+            if isinstance(object, numpy.generic):
+                return object.item()
+
+        with open(args.result_file, "w") as f:
+            json.dump(result_dict, f, indent=4, sort_keys=True, default=numpy_encoder)
 
     if args.pred_file is not None:
         out_lines = []
