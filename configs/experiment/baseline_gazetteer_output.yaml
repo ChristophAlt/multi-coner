@@ -17,6 +17,7 @@ defaults:
 model:
     wiki_to_vec_file: null
     use_language_model: False
+    use_span_length_embedding: False
 
 taskmodule:
     wiki_to_vec_file: null
