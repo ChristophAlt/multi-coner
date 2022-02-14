@@ -117,6 +117,7 @@ def log_hyperparameters(
     config: DictConfig,
     model: pl.LightningModule,
     datamodule: pl.LightningDataModule,
+    taskmodule,
     trainer: pl.Trainer,
     callbacks: List[pl.Callback],
     logger: List[pl.loggers.LightningLoggerBase],
@@ -133,6 +134,7 @@ def log_hyperparameters(
     hparams["trainer"] = config["trainer"]
     hparams["model"] = config["model"]
     hparams["datamodule"] = config["datamodule"]
+    hparams["taskmodule"] = config["taskmodule"]
     if "seed" in config:
         hparams["seed"] = config["seed"]
     if "callbacks" in config:

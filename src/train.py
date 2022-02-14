@@ -108,6 +108,7 @@ def train(config: DictConfig) -> Optional[float]:
         config=config,
         model=model,
         datamodule=datamodule,
+        taskmodule=task_module,
         trainer=trainer,
         callbacks=callbacks,
         logger=logger,
