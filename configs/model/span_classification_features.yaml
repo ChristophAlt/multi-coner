@@ -19,3 +19,4 @@ dropout_prob: 0.1
 use_language_model: True
 use_span_length_embedding: True
 wiki_to_vec_file: null
+loss: CrossEntropyLoss

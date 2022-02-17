@@ -6,6 +6,7 @@ import torchmetrics
 from gensim.models import KeyedVectors
 from pytorch_ie.core.pytorch_ie import PyTorchIEModel
 from pytorch_ie.models.modules.mlp import MLP
+from class_resolver import ClassResolver, Hint
 from torch import Tensor, nn
 from transformers import (
     AdamW,
@@ -14,6 +15,7 @@ from transformers import (
     BatchEncoding,
     get_linear_schedule_with_warmup,
 )
+from src.losses.focal import FocalLoss
 
 TransformerSpanClassificationModelBatchEncoding = BatchEncoding
 TransformerSpanClassificationModelBatchOutput = Dict[str, Any]
@@ -25,6 +27,13 @@ TransformerSpanClassificationModelStepBatchEncoding = Tuple[
 
 
 logger = logging.getLogger(__name__)
+
+
+loss_resolver = ClassResolver(
+    [nn.CrossEntropyLoss, FocalLoss],
+    base=nn.Module,
+    default=nn.CrossEntropyLoss,
+)
 
 
 class SpanClassificationWithFeaturesModel(PyTorchIEModel):
@@ -59,6 +68,8 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
         gazetteer_add_output_features: bool = False,
         wiki_to_vec_file: Optional[str] = None,
         num_gazetteer_labels: Optional[int] = None,
+        loss: Hint[nn.Module] = None,
+        loss_kwargs: Optional[Dict[str, Any]] = None
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -147,7 +158,7 @@ class SpanClassificationWithFeaturesModel(PyTorchIEModel):
                 out_features=num_classes,
             )
 
-        self.loss_fct = nn.CrossEntropyLoss()
+        self.loss_fct = loss_resolver.make(loss, loss_kwargs)
 
         self.train_f1 = torchmetrics.F1(num_classes=num_classes, ignore_index=ignore_index)
         self.val_f1 = torchmetrics.F1(num_classes=num_classes, ignore_index=ignore_index)
